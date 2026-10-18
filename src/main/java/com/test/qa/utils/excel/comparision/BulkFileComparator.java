@@ -7,6 +7,7 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.EOFException;
 import java.io.IOException;
+import java.io.Writer;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.Reader;
@@ -150,6 +151,8 @@ public class BulkFileComparator {
 		private final SXSSFWorkbook workbook;
 		private final Sheet summarySheet;
 		private final Sheet mismatchSheet;
+		private final Path htmlReport;
+		private Writer htmlWriter;
 
 		private int mismatchRow = 1;
 		private boolean closed;
@@ -170,7 +173,8 @@ public class BulkFileComparator {
 		String executionStatus = "COMPLETED";
 		long malformedRows;
 
-		ReportWriter(Config config) {
+		ReportWriter(Config config, Path htmlReport) throws IOException {
+			this.htmlReport = htmlReport;
 
 			workbook = new SXSSFWorkbook(200);
 			workbook.setCompressTempFiles(true);
@@ -180,6 +184,12 @@ public class BulkFileComparator {
 			mismatchSheet = workbook.createSheet(config.reportSheetName);
 
 			writeMismatchHeader();
+			if (htmlReport != null) {
+				Path parent = htmlReport.toAbsolutePath().getParent();
+				if (parent != null) Files.createDirectories(parent);
+				htmlWriter = Files.newBufferedWriter(htmlReport, StandardCharsets.UTF_8);
+				writeHtml("<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>File validation report</title><style> :root{color-scheme:light;--ink:#172b4d;--muted:#5e6c84;--line:#e5eaf1;--surface:#fff;--bg:#f4f7fb;--blue:#2457c5;--red:#b42318;--green:#147d4a}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}main{max-width:1440px;margin:0 auto;padding:36px 32px 56px}h1{font-size:30px;line-height:1.2;margin:0 0 6px;letter-spacing:-.5px}.subtitle{color:var(--muted);margin:0 0 24px}.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:0 3px 12px #172b4d0a;margin:20px 0;padding:24px}.result-card{display:flex;align-items:center;gap:16px;padding:20px 24px}.result-icon{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;background:#fff0ef;color:var(--red);font-size:22px;font-weight:800}.result-icon.pass{background:#e8f7ef;color:var(--green)}.status{font-size:20px;font-weight:750;color:var(--red)}.status.pass{color:var(--green)}.result-note{color:var(--muted);font-size:13px;margin-top:2px}.section-heading{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin:0 0 18px}.section-heading h2{font-size:18px;margin:0}.section-heading p{color:var(--muted);font-size:13px;margin:0}.metrics{display:grid;grid-template-columns:repeat(5,minmax(130px,1fr));gap:12px}.metric{border:1px solid var(--line);border-radius:10px;padding:14px 16px;background:#fff}.metric-label{font-size:12px;color:var(--muted);font-weight:650;letter-spacing:.02em}.metric-value{font-size:24px;font-weight:750;margin-top:3px;font-variant-numeric:tabular-nums}.files{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px}.file{padding:12px 14px;background:#f8faff;border-radius:9px;min-width:0}.file-label{display:block;color:var(--muted);font-size:12px;font-weight:650;margin-bottom:3px}.file-value{overflow-wrap:anywhere;font-size:13px} .table-wrap{overflow:auto;border:1px solid var(--line);border-radius:10px}table{border-collapse:separate;border-spacing:0;width:100%;min-width:920px;background:white}th,td{text-align:left;padding:12px 14px;border-bottom:1px solid var(--line);vertical-align:top}th{position:sticky;top:0;background:#f5f7fb;color:#53627a;font-size:11px;text-transform:uppercase;letter-spacing:.055em;font-weight:750;white-space:nowrap}td{font-size:13px;line-height:1.45;overflow-wrap:anywhere}tbody tr:last-child td{border-bottom:0}tbody tr:nth-child(even){background:#fbfcfe}tbody tr:hover{background:#f4f8ff}td:nth-child(1){white-space:nowrap;font-weight:650;color:#344563}td:nth-child(2){min-width:130px}td:nth-child(3){min-width:130px}td:nth-child(4),td:nth-child(5){min-width:150px;max-width:280px}td:nth-child(6){min-width:280px;max-width:480px}.empty{padding:32px;text-align:center;color:var(--muted)}@media(max-width:900px){main{padding:24px 16px}.metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.files{grid-template-columns:1fr}.card{padding:18px}}@media print{body{background:#fff}.card{box-shadow:none;break-inside:avoid}main{max-width:none;padding:0}.table-wrap{overflow:visible}table{min-width:0}th{position:static}}</style></head><body><main><h1>File validation report</h1><p class=\"subtitle\">Bulk file comparison results</p><section class=\"card result-card\"><div class=\"result-icon\" id=\"result-icon\">!</div><div><div id=\"result\" class=\"status\">IN PROGRESS</div><div class=\"result-note\">Comparison finished with the summary below.</div></div></section><section class=\"card\"><div class=\"section-heading\"><h2>Summary</h2><p>Validation totals and source files</p></div><div class=\"metrics\"><div class=\"metric\"><div class=\"metric-label\">Actual rows</div><div class=\"metric-value\" id=\"actual-rows\">–</div></div><div class=\"metric\"><div class=\"metric-label\">Expected rows</div><div class=\"metric-value\" id=\"expected-rows\">–</div></div><div class=\"metric\"><div class=\"metric-label\">Value mismatches</div><div class=\"metric-value\" id=\"value-mismatches\">–</div></div><div class=\"metric\"><div class=\"metric-label\">Missing / extra rows</div><div class=\"metric-value\" id=\"row-mismatches\">–</div></div><div class=\"metric\"><div class=\"metric-label\">Duplicate keys</div><div class=\"metric-value\" id=\"duplicate-keys\">–</div></div></div><div class=\"files\"><div class=\"file\"><span class=\"file-label\">Actual file</span><div id=\"actual-file\" class=\"file-value\"></div></div><div class=\"file\"><span class=\"file-label\">Expected file</span><div id=\"expected-file\" class=\"file-value\"></div></div></div><div class=\"files\"><div class=\"file\"><span class=\"file-label\">Header mismatches</span><div id=\"header-mismatches\" class=\"file-value\">–</div></div><div class=\"file\"><span class=\"file-label\">Malformed rows · execution status</span><div class=\"file-value\"><span id=\"malformed-rows\">–</span> · <span id=\"execution-status\">–</span></div></div></div></section><section class=\"card\"><div class=\"section-heading\"><h2>Mismatches</h2><p>Cell values are redacted where sensitive data is detected.</p></div><div class=\"table-wrap\"><table><thead><tr><th>Type</th><th>Key</th><th>Column</th><th>Actual</th><th>Expected</th><th>Details</th></tr></thead><tbody>");
+			}
 		}
 
 		private void writeMismatchHeader() {
@@ -195,15 +205,22 @@ public class BulkFileComparator {
 		}
 
 		void addMismatch(String type, String key, String column, String actual, String expected, String details) {
+			String safeType = safe(type), safeKey = redact(key, "key"), safeColumn = safe(column);
+			String safeActual = redact(actual, column), safeExpected = redact(expected, column), safeDetails = redact(details, column);
 
 			Row row = mismatchSheet.createRow(mismatchRow++);
 
-			row.createCell(0).setCellValue(safe(type));
-			row.createCell(1).setCellValue(redact(key, "key"));
-			row.createCell(2).setCellValue(safe(column));
-			row.createCell(3).setCellValue(redact(actual, column));
-			row.createCell(4).setCellValue(redact(expected, column));
-			row.createCell(5).setCellValue(redact(details, column));
+			row.createCell(0).setCellValue(safeType);
+			row.createCell(1).setCellValue(safeKey);
+			row.createCell(2).setCellValue(safeColumn);
+			row.createCell(3).setCellValue(safeActual);
+			row.createCell(4).setCellValue(safeExpected);
+			row.createCell(5).setCellValue(safeDetails);
+			if (htmlWriter != null) {
+				try {
+				writeHtml("<tr><td>" + html(safeType) + "</td><td>" + html(safeKey) + "</td><td>" + html(safeColumn) + "</td><td>" + html(safeActual) + "</td><td>" + html(safeExpected) + "</td><td>" + html(safeDetails) + "</td></tr>");
+				} catch (IOException e) { throw new UncheckedIOException(e); }
+			}
 		}
 
 		void writeHeaderMismatch(String key, String column, String actual, String expected, String details) {
@@ -214,6 +231,13 @@ public class BulkFileComparator {
 		}
 
 		void writeSummary(Path actual, Path expected, boolean passed) {
+			if (htmlWriter != null) {
+				try {
+					if (mismatchRow == 1) writeHtml("<tr><td colspan=\"6\" class=\"empty\">No mismatches found. Both files passed validation.</td></tr>");
+					writeHtml("</tbody></table></div></section><script>const set=(id,value)=>document.getElementById(id).textContent=value;set('result','" + (passed ? "PASS" : "FAIL") + "');document.getElementById('result').className='status " + (passed ? "pass" : "fail") + "';set('result-icon','" + (passed ? "✓" : "!") + "');if(" + passed + ")document.getElementById('result-icon').classList.add('pass');set('actual-rows','" + actualRows + "');set('expected-rows','" + expectedRows + "');set('value-mismatches','" + valueMismatches + "');set('row-mismatches','" + (missingRows + extraRows) + "');set('duplicate-keys','" + duplicateKeys + "');set('header-mismatches','" + headerMismatches + "');set('malformed-rows','" + malformedRows + "');set('execution-status','" + js(executionStatus) + "');set('actual-file','" + js(actual.toAbsolutePath().toString()) + "');set('expected-file','" + js(expected.toAbsolutePath().toString()) + "');</script></main></body></html>");
+					htmlWriter.close(); htmlWriter = null;
+				} catch (IOException e) { throw new UncheckedIOException(e); }
+			}
 
 			summarySheet.createRow(0).createCell(0).setCellValue("File Validation Summary");
 
@@ -261,6 +285,17 @@ public class BulkFileComparator {
 			}
 		}
 
+		private void writeHtml(String text) throws IOException { htmlWriter.write(text); }
+		private static String js(String value) {
+			return value.replace("\\", "\\\\").replace("'", "\\'").replace("\r", "\\r")
+					.replace("\n", "\\n").replace("<", "\\u003c").replace(">", "\\u003e")
+					.replace("&", "\\u0026");
+		}
+		private static String html(String value) {
+			return value.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+					.replace("\"", "&quot;").replace("'", "&#39;");
+		}
+
 		private String safe(String value) {
 			return value == null ? "" : value;
 		}
@@ -279,6 +314,11 @@ public class BulkFileComparator {
 			if (closed)
 				return;
 			closed = true;
+			if (htmlWriter != null) {
+				try { writeHtml("</tbody></table></div></section></main></body></html>"); htmlWriter.close(); }
+				catch (IOException ignored) { }
+				htmlWriter = null;
+			}
 			try {
 				workbook.dispose();
 			} finally {
@@ -728,7 +768,11 @@ public class BulkFileComparator {
 
 		System.out.println("[" + comparisonId + "] Expected : " + expectedFile.toAbsolutePath());
 
-		ReportWriter report = new ReportWriter(config);
+		Path htmlReport = htmlReportPath(reportPath);
+		if (htmlReport != null && (htmlReport.equals(actualPath) || htmlReport.equals(expectedPath) || htmlReport.equals(reportPath))) {
+			throw new IllegalArgumentException("HTML report path must be different from input files and XLSX report");
+		}
+		ReportWriter report = new ReportWriter(config, htmlReport);
 		Path actualTemp = null;
 		Path expectedTemp = null;
 		boolean reportSaved = false;
@@ -849,6 +893,7 @@ public class BulkFileComparator {
 			reportSaved = true;
 
 			System.out.println("[" + comparisonId + "] Report created: " + reportFile.toAbsolutePath());
+			if (htmlReport != null) System.out.println("[" + comparisonId + "] HTML report created: " + htmlReport);
 
 			System.out.println("[" + comparisonId + "] Comparison completed");
 
@@ -1570,5 +1615,12 @@ public class BulkFileComparator {
 
 	private static String createComparisonId() {
 		return UUID.randomUUID().toString().substring(0, 8);
+	}
+
+	private static Path htmlReportPath(Path reportFile) {
+		String name = reportFile.getFileName().toString();
+		int extension = name.lastIndexOf('.');
+		String base = extension > 0 ? name.substring(0, extension) : name;
+		return reportFile.resolveSibling(base + ".html").toAbsolutePath().normalize();
 	}
 }

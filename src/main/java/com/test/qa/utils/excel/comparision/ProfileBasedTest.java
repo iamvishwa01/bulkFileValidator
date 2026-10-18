@@ -11,7 +11,7 @@ public final class ProfileBasedTest {
 	public static void main(String[] args) throws Exception {
 		if (args.length < 3 || args.length > 4) {
 			System.err.println(
-					"Usage: ProfileBasedTest <actual.csv|xlsx> <expected.csv|xlsx> <report.xlsx> [profile.json]");
+				"Usage: ProfileBasedTest <actual.csv|xlsx> <expected.csv|xlsx> <report.xlsx> [profile.json]. An HTML report with the same base name is also created.");
 			System.exit(2);
 		}
 

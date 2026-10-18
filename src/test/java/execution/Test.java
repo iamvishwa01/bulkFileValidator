@@ -10,8 +10,8 @@ import com.test.qa.utils.excel.comparision.ValidationProfile;
 public class Test {
 
 	public static void main(String[] args) throws Exception {
-		Path actualFile = Paths.get("input", "malformed-row-actual.csv");
-		Path expectedFile = Paths.get("input", "malformed-row-expected.csv");
+		Path actualFile = Paths.get("input", "actual.csv");
+		Path expectedFile = Paths.get("input", "expected.csv");
 		Path reportFile = Paths.get("output", "comparison-report.xlsx");
 		// Load your validation profile if required
 		ValidationProfile profile = RuleConfigLoader.fromFile(Paths.get("config", "transaction-reconciliation-profile.json"));
