@@ -1,0 +1,60 @@
+{
+  "profileName": "sample-employee-report",
+  "keyColumn": "ID",
+  "columns": {
+    "NAME": {
+      "type": "STRING",
+      "trimWhitespace": true,
+      "caseSensitive": true,
+      "nullEqualsBlank": false,
+      "whitespaceOnlyIsBlank": true,
+      "nullTokens": ["NULL", "N/A"]
+    },
+    "AGE": {
+      "type": "DECIMAL",
+      "trimWhitespace": true,
+      "caseSensitive": true,
+      "nullEqualsBlank": false,
+      "whitespaceOnlyIsBlank": true,
+      "scale": 0,
+      "roundingMode": "UNNECESSARY",
+      "tolerance": "0",
+      "nullTokens": ["NULL", "N/A"]
+    },
+    "CITY": {
+      "type": "STRING",
+      "trimWhitespace": true,
+      "caseSensitive": false,
+      "nullEqualsBlank": false,
+      "whitespaceOnlyIsBlank": true,
+      "nullTokens": ["NULL", "N/A"]
+    },
+    "SALARY": {
+      "type": "DECIMAL",
+      "trimWhitespace": true,
+      "caseSensitive": true,
+      "nullEqualsBlank": false,
+      "whitespaceOnlyIsBlank": true,
+      "scale": 2,
+      "roundingMode": "HALF_UP",
+      "tolerance": "0.01",
+      "nullTokens": ["NULL", "N/A"]
+    },
+    "Status": {
+      "type": "STRING",
+      "trimWhitespace": true,
+      "caseSensitive": false,
+      "nullEqualsBlank": false,
+      "whitespaceOnlyIsBlank": true,
+      "nullTokens": ["NULL", "N/A"]
+    },
+    "Street": {
+      "type": "STRING",
+      "trimWhitespace": true,
+      "caseSensitive": false,
+      "nullEqualsBlank": false,
+      "whitespaceOnlyIsBlank": true,
+      "nullTokens": ["NULL", "N/A"]
+    }
+  }
+}

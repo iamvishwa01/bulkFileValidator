@@ -1,0 +1,122 @@
+{
+  "profileName": "transaction-reconciliation",
+  "keyColumn": "Payment / Auth ID",
+  "columns": {
+    "Transaction Date/Time": {
+      "type": "STRING",
+      "trimWhitespace": true,
+      "caseSensitive": true,
+      "nullEqualsBlank": false,
+      "whitespaceOnlyIsBlank": true,
+      "nullTokens": ["NULL", "N/A"]
+    },
+    "Merchant Reference": {
+      "type": "STRING",
+      "trimWhitespace": true,
+      "caseSensitive": true,
+      "nullEqualsBlank": false,
+      "whitespaceOnlyIsBlank": true,
+      "nullTokens": ["NULL", "N/A"]
+    },
+    "Payment / Auth ID": {
+      "type": "STRING",
+      "trimWhitespace": true,
+      "caseSensitive": true,
+      "nullEqualsBlank": false,
+      "whitespaceOnlyIsBlank": true,
+      "nullTokens": ["NULL", "N/A"]
+    },
+    "Channel": {
+      "type": "STRING",
+      "trimWhitespace": true,
+      "caseSensitive": false,
+      "nullEqualsBlank": false,
+      "whitespaceOnlyIsBlank": true,
+      "nullTokens": ["NULL", "N/A"]
+    },
+    "Card Scheme": {
+      "type": "STRING",
+      "trimWhitespace": true,
+      "caseSensitive": false,
+      "nullEqualsBlank": false,
+      "whitespaceOnlyIsBlank": true,
+      "nullTokens": ["NULL", "N/A"]
+    },
+    "Masked PAN": {
+      "type": "STRING",
+      "trimWhitespace": true,
+      "caseSensitive": true,
+      "nullEqualsBlank": false,
+      "whitespaceOnlyIsBlank": true,
+      "nullTokens": ["NULL", "N/A"]
+    },
+    "Transaction Type": {
+      "type": "STRING",
+      "trimWhitespace": true,
+      "caseSensitive": false,
+      "nullEqualsBlank": false,
+      "whitespaceOnlyIsBlank": true,
+      "nullTokens": ["NULL", "N/A"]
+    },
+    "Status": {
+      "type": "STRING",
+      "trimWhitespace": true,
+      "caseSensitive": false,
+      "nullEqualsBlank": false,
+      "whitespaceOnlyIsBlank": true,
+      "nullTokens": ["NULL", "N/A"]
+    },
+    "Gross Amount": {
+      "type": "DECIMAL",
+      "trimWhitespace": true,
+      "caseSensitive": true,
+      "nullEqualsBlank": false,
+      "whitespaceOnlyIsBlank": true,
+      "scale": 2,
+      "roundingMode": "HALF_UP",
+      "tolerance": "0.01",
+      "nullTokens": ["NULL", "N/A"]
+    },
+    "Refund": {
+      "type": "DECIMAL",
+      "trimWhitespace": true,
+      "caseSensitive": true,
+      "nullEqualsBlank": false,
+      "whitespaceOnlyIsBlank": true,
+      "scale": 2,
+      "roundingMode": "HALF_UP",
+      "tolerance": "0",
+      "nullTokens": ["NULL", "N/A"]
+    },
+    "Processing Fee": {
+      "type": "DECIMAL",
+      "trimWhitespace": true,
+      "caseSensitive": true,
+      "nullEqualsBlank": false,
+      "whitespaceOnlyIsBlank": true,
+      "scale": 2,
+      "roundingMode": "HALF_UP",
+      "tolerance": "0.03",
+      "nullTokens": ["NULL", "N/A"]
+    },
+    "Net Amount": {
+      "type": "DECIMAL",
+      "trimWhitespace": true,
+      "caseSensitive": true,
+      "nullEqualsBlank": false,
+      "whitespaceOnlyIsBlank": true,
+      "scale": 2,
+      "roundingMode": "HALF_UP",
+      "tolerance": "0.01",
+      "nullTokens": ["NULL", "N/A"]
+    },
+    "Settlement Batch": {
+      "type": "STRING",
+      "trimWhitespace": true,
+      "caseSensitive": false,
+      "nullEqualsBlank": false,
+      "whitespaceOnlyIsBlank": true,
+      "nullTokens": ["NULL", "N/A", "—"]
+    }
+  }
+}
