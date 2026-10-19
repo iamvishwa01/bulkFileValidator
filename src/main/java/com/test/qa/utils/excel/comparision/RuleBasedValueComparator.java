@@ -4,18 +4,33 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.Locale;
 
-/** Applies a column's configured normalization and comparison semantics. */
+/** Normalizes and compares two cell values according to a column rule. */
 public final class RuleBasedValueComparator {
+	/** Contains the comparison outcome, normalized values, and a human-readable explanation. */
 	public record ComparisonResult(boolean matches, String normalizedActual, String normalizedExpected,
 			String explanation) {
 	}
 
+	/** Prevents construction of this static utility class. */
 	private RuleBasedValueComparator() {
 	}
 
+	/** Compares two values using blank, null, string, or decimal policies from the rule.
+	 *
+	 * @param actual value from the actual source, possibly null
+	 *
+	 * @param expected value from the expected source, possibly null
+	 *
+	 * @param rule column policy; a default rule is used when null
+	 *
+	 * @return comparison result and normalized display values */
 	public static ComparisonResult compare(String actual, String expected, ColumnRule rule) {
 		if (rule == null)
 			rule = new ColumnRule();
+		if (rule.isIgnoreExpectedBlank() && (isBlank(expected, rule) || isExplicitNull(expected, rule))) {
+			return new ComparisonResult(true, display(actual, rule), display(expected, rule),
+					"Expected value is blank; comparison skipped by the column rule");
+		}
 		boolean actualExplicitNull = isExplicitNull(actual, rule);
 		boolean expectedExplicitNull = isExplicitNull(expected, rule);
 		if (actualExplicitNull || expectedExplicitNull) {
@@ -68,6 +83,7 @@ public final class RuleBasedValueComparator {
 				: "Text values differ after configured normalization");
 	}
 
+	/** Tests whether a value is Java null or matches a configured null token. */
 	private static boolean isExplicitNull(String value, ColumnRule rule) {
 		if (value == null)
 			return true;
@@ -79,6 +95,7 @@ public final class RuleBasedValueComparator {
 		return false;
 	}
 
+	/** Tests whether a value is empty or configured whitespace-only text. */
 	private static boolean isBlank(String value, ColumnRule rule) {
 		if (value == null)
 			return false;
@@ -90,6 +107,7 @@ public final class RuleBasedValueComparator {
 		return false;
 	}
 
+	/** Produces a readable marker for null and blank values for mismatch reports. */
 	private static String display(String value, ColumnRule rule) {
 		if (value == null)
 			return "<JAVA_NULL>";
@@ -98,6 +116,7 @@ public final class RuleBasedValueComparator {
 		return isBlank(value, rule) ? "<BLANK>" : clean(value, rule);
 	}
 
+	/** Applies the configured whitespace normalization to a non-null value. */
 	private static String clean(String value, ColumnRule rule) {
 		if (!rule.isTrimWhitespace())
 			return value;
@@ -108,7 +127,7 @@ public final class RuleBasedValueComparator {
 		return value.trim();
 	}
 
-	/** Parses numeric cells formatted by Excel with currency symbols or grouping separators. */
+	/** Parses numeric text, supporting currency symbols, grouping marks, and accounting negatives. */
 	private static BigDecimal parseDecimal(String value) {
 		String normalized = value.replaceAll("[\\p{Sc}\\s\\u00A0\\u202F]", "");
 		boolean accountingNegative = normalized.startsWith("(") && normalized.endsWith(")");
@@ -138,11 +157,13 @@ public final class RuleBasedValueComparator {
 		return accountingNegative ? result.negate() : result;
 	}
 
+	/** Converts a decimal to a stable plain-text representation without trailing zeroes. */
 	private static String canonical(BigDecimal value) {
 		BigDecimal normalized = value.stripTrailingZeros();
 		return normalized.scale() < 0 ? normalized.setScale(0).toPlainString() : normalized.toPlainString();
 	}
 
+	/** Returns a normalized value while preserving a safe marker for null. */
 	private static String safeClean(String value, ColumnRule rule) {
 		return value == null ? "<NULL>" : clean(value, rule);
 	}

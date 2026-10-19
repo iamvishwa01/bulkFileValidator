@@ -13,16 +13,19 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.math.RoundingMode;
 
-/** Loads a validation profile from JSON without adding any new dependency. */
+/** Parses and validates JSON-based column comparison profiles. */
 public final class RuleConfigLoader {
 	private static final ObjectMapper MAPPER = createMapper();
 
+	/** Prevents construction of this static utility class. */
 	private RuleConfigLoader() {
 	}
 
+	/** Creates the JSON mapper, including case-insensitive parsing of rounding modes. */
 	private static ObjectMapper createMapper() {
 		SimpleModule module = new SimpleModule();
 		module.addDeserializer(RoundingMode.class, new StdDeserializer<>(RoundingMode.class) {
+			/** Converts a JSON rounding mode name to its Java enum value. */
 			@Override
 			public RoundingMode deserialize(JsonParser parser, DeserializationContext context) throws IOException {
 				try {
@@ -36,12 +39,26 @@ public final class RuleConfigLoader {
 				.build();
 	}
 
+	/** Loads and validates a profile from a filesystem path.
+	 *
+	 * @param path JSON profile file
+	 *
+	 * @return parsed validation profile
+	 *
+	 * @throws IOException if the file cannot be read or contains invalid configuration */
 	public static ValidationProfile fromFile(Path path) throws IOException {
 		try (InputStream in = Files.newInputStream(path)) {
 			return validate(MAPPER.readValue(in, ValidationProfile.class));
 		}
 	}
 
+	/** Loads and validates a profile from the application's classpath resources.
+	 *
+	 * @param resourcePath classpath resource name
+	 *
+	 * @return parsed validation profile
+	 *
+	 * @throws IOException if the resource is missing, unreadable, or invalid */
 	public static ValidationProfile fromResource(String resourcePath) throws IOException {
 		try (InputStream in = RuleConfigLoader.class.getClassLoader().getResourceAsStream(resourcePath)) {
 			if (in == null)
@@ -50,6 +67,7 @@ public final class RuleConfigLoader {
 		}
 	}
 
+	/** Checks required profile fields and validates each rule's decimal tolerance. */
 	private static ValidationProfile validate(ValidationProfile profile) throws IOException {
 		if (profile == null)
 			throw new IOException("Profile is empty");

@@ -31,7 +31,8 @@
       "trimWhitespace": true,
       "caseSensitive": false,
       "nullEqualsBlank": false,
-      "whitespaceOnlyIsBlank": true,
+      "whitespaceOnlyIsBlank": false,
+      "ignoreExpectedBlank": false,
       "nullTokens": ["NULL", "N/A"]
     },
     "Card Scheme": {
@@ -111,6 +112,14 @@
       "nullTokens": ["NULL", "N/A"]
     },
     "Settlement Batch": {
+      "type": "STRING",
+      "trimWhitespace": true,
+      "caseSensitive": false,
+      "nullEqualsBlank": false,
+      "whitespaceOnlyIsBlank": true,
+      "nullTokens": ["NULL", "N/A", "—"]
+    },
+    "status2": {
       "type": "STRING",
       "trimWhitespace": true,
       "caseSensitive": false,

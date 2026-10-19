@@ -1,13 +1,14 @@
 package com.test.qa.utils.excel.comparision;
 
-/**
- * Dependency-free regression checks for comparison semantics. Run with: java
- * com.test.qa.utils.excel.comparision.ComparatorRegressionTest
- */
+/** Standalone regression checks for the value-comparison policies. */
 public final class ComparatorRegressionTest {
+	/** Prevents construction of this utility class. */
 	private ComparatorRegressionTest() {
 	}
 
+	/** Runs each comparison-policy check and prints a success message. */
+	/**
+	 * @param args unused */
 	public static void main(String[] args) {
 		whitespacePolicyIsRespected();
 		decimalRoundingDoesNotHideDifferences();
@@ -15,6 +16,7 @@ public final class ComparatorRegressionTest {
 		System.out.println("Comparator regression checks passed.");
 	}
 
+	/** Checks that whitespace-only values follow the configured blank policy. */
 	private static void whitespacePolicyIsRespected() {
 		ColumnRule rule = new ColumnRule();
 		rule.setType(ColumnRule.DataType.STRING);
@@ -28,6 +30,7 @@ public final class ComparatorRegressionTest {
 				"Whitespace-only value should be blank when policy says blank");
 	}
 
+	/** Checks that decimal rounding does not conceal differences in source values. */
 	private static void decimalRoundingDoesNotHideDifferences() {
 		ColumnRule rule = new ColumnRule();
 		rule.setType(ColumnRule.DataType.DECIMAL);
@@ -38,6 +41,7 @@ public final class ComparatorRegressionTest {
 				"Rounding must not hide a difference in exact source amounts");
 	}
 
+	/** Checks that tolerance is compared against the exact decimal difference. */
 	private static void decimalToleranceIsAppliedToExactDifference() {
 		ColumnRule rule = new ColumnRule();
 		rule.setType(ColumnRule.DataType.DECIMAL);
@@ -50,6 +54,7 @@ public final class ComparatorRegressionTest {
 				"Difference above tolerance must fail");
 	}
 
+	/** Fails a regression check when its condition is false. */
 	private static void check(boolean condition, String message) {
 		if (!condition)
 			throw new AssertionError(message);

@@ -1,117 +1,173 @@
 # Bulk File Validator
 
-Bulk File Validator compares two CSV or Excel files and reports differences by row key. It is designed for large files: input rows are processed in bounded chunks, sorted into temporary runs, then merged for comparison. A JSON validation profile can define different comparison rules for individual columns.
+Bulk File Validator checks whether an actual data set matches an expected data set. It can compare CSV/XLSX files with each other, or compare a CSV/XLSX file with rows returned by a MySQL query. Rows are paired by a key column, and the report explains missing records, extra records, schema differences, duplicate keys, and unequal values.
 
-## Capabilities
+## At a glance
 
-- Compare `.csv` files and `.xlsx` workbooks. For workbooks, the first worksheet is used.
-- Match records using a configured key column. Keys can be sorted as text or as numbers.
-- Compare headers without regard to case and surrounding whitespace by default. Column order does not need to match unless strict header ordering is enabled.
-- Compare values using global settings or per-column rules from a JSON profile.
-- Identify missing and extra rows, duplicate keys, mismatched values, header problems, malformed records, and blank keys.
-- Write a two-sheet XLSX report and a self-contained HTML report with the same base name.
-- Redact values in sensitive columns and PAN-like digit sequences in both reports.
+```mermaid
+flowchart LR
+    A[Actual CSV or XLSX] --> C[Stream and normalize rows]
+    B[Expected CSV or XLSX] --> C
+    Q[MySQL query result] --> C
+    C --> D[Sort bounded chunks into temporary files]
+    D --> E[Merge rows by key]
+    E --> F[Compare headers, keys, and column values]
+    P[JSON validation profile] --> F
+    F --> R[XLSX report]
+    F --> H[HTML report]
+```
 
-## Requirements
+## How a comparison works
+
+1. The validator reads the headers from both sources and matches columns by name. Header case and surrounding whitespace are ignored by default; column order can differ.
+2. Each source is read a row at a time. CSV rows, the first worksheet in an XLSX file, or rows from a forward-only MySQL result set are supported.
+3. Rows are sorted in bounded-size chunks using the configured key. Sorted chunks are written to temporary files, so the full data set does not need to fit in memory.
+4. The sorted sources are merged and compared by key. A JSON profile can set different comparison rules for each column.
+5. The validator writes an Excel workbook and a matching standalone HTML report. Temporary sort files are removed when the comparison finishes.
+
+The report passes only if there are no header or value mismatches, missing or extra rows, duplicate keys, or malformed rows. Duplicate-key groups are reported as ambiguous rather than paired arbitrarily. Rows with blank keys or the wrong number of fields are reported and skipped.
+
+## Data sources
+
+| Actual source | Expected source | Supported formats |
+| --- | --- | --- |
+| CSV or XLSX | CSV or XLSX | CSV uses the first row as headers. XLSX uses the first worksheet. |
+| CSV or XLSX | MySQL query | The SQL result is treated as the expected data set. |
+
+Database mode currently supports MySQL. The query result must include the key column and the expected data columns. Use SQL aliases to make result labels match the actual file's headers. The validator compares the columns returned by the query; a column added to a database table is not included unless the SQL selects it. For example:
+
+```sql
+SELECT
+    payment_auth_id AS `Payment / Auth ID`,
+    status2 AS `status2`
+FROM bulk_validator.transactions;
+```
+
+If `status2` is not present in the actual file, the report identifies it as a header mismatch.
+
+## Architecture
+
+The source code is organized around a small set of responsibilities:
+
+| Component | Responsibility |
+| --- | --- |
+| `BulkFileComparator` | Coordinates source reading, header validation, external sorting, key-based merge comparison, cleanup, and report output. Its public `compare` methods accept file sources or a MySQL source. |
+| `JdbcQueryConfig` | Holds MySQL connection settings, SQL text, fetch size, and optional query timeout. |
+| `ColumnRule` | Describes how to compare one column, including string/decimal type, whitespace, case, nulls, and numeric tolerance. |
+| `ValidationProfile` | Groups a key column and named `ColumnRule` settings into a reusable profile. |
+| `RuleConfigLoader` | Loads a JSON profile and validates required settings. |
+| `RuleBasedValueComparator` | Applies a column's normalization policy and determines whether two values match. |
+| `ReportWriter` (inside `BulkFileComparator`) | Writes summary and mismatch data to XLSX and HTML. Sensitive values are redacted in mismatch output. |
+
+The file and database entry points are small runnable Java classes under `src/test/java/execution`. They are ordinary `main` programs, not JUnit tests.
+
+## Requirements and build
 
 - Java 17 or later
 - Maven 3.8 or later
+- MySQL and network access to it when using database mode
 
-The project uses Apache Commons CSV to read CSV files, Apache POI to stream XLSX files and write reports, and Jackson to load validation profiles.
-
-## Build
-
-From the project directory, run:
+Build the project from its root directory:
 
 ```bash
 mvn clean package
-```
-
-To copy runtime dependencies for direct command-line execution:
-
-```bash
 mvn dependency:copy-dependencies
 ```
 
-## Run a comparison
+Apache Commons CSV reads CSV input, Apache POI streams XLSX input and writes Excel reports, Jackson reads JSON profiles, and MySQL Connector/J provides database connectivity.
 
-The `ProfileBasedTest` entry point accepts the actual file, expected file, XLSX report path, and an optional JSON profile. Pass a profile path to apply per-column rules. The no-profile form uses the built-in classpath resource `profiles/sample-validation-profile.json` when that resource is present on the runtime classpath. The repository's editable profile files are in `config/`, so pass one of those paths for the examples below.
+## Run file-to-file validation
+
+The `execution.Test` entry point compares the sample files using `config/transaction-reconciliation-profile.json`:
+
+```text
+Actual:   input/actual.csv
+Expected: input/expected.csv
+Reports:  output/comparison-report.xlsx
+          output/comparison-report.html
+```
+
+Run `execution.Test` as a Java application in your IDE, with the project root as its working directory.
+
+For custom paths or profiles, use `ProfileBasedTest`:
 
 ```text
 ProfileBasedTest <actual.csv|actual.xlsx> <expected.csv|expected.xlsx> <report.xlsx> [profile.json]
 ```
 
-For example, on Windows:
+Example command for Windows PowerShell:
 
 ```powershell
-java -cp "target/classes;target/dependency/*" com.test.qa.utils.excel.comparision.ProfileBasedTest input/actual.csv input/expected.csv output/comparison-report.xlsx config/transaction-reconciliation-profile.json
+java -cp "target/classes;target/dependency/*" `
+  com.test.qa.utils.excel.comparision.ProfileBasedTest `
+  input/actual.csv input/expected.csv output/comparison-report.xlsx `
+  config/transaction-reconciliation-profile.json
 ```
 
-On Linux or macOS, use a colon between classpath entries:
+On Linux or macOS, use `:` between classpath entries instead of `;`.
 
-```bash
-java -cp "target/classes:target/dependency/*" com.test.qa.utils.excel.comparision.ProfileBasedTest input/actual.csv input/expected.csv output/comparison-report.xlsx config/transaction-reconciliation-profile.json
+## Run database-to-file validation
+
+`execution.DatabaseTest` uses these defaults:
+
+- Actual file: `input/actual.csv`
+- SQL query: `config/expected-transactions.sql`
+- Profile: `config/transaction-reconciliation-profile.json`
+- Reports: `output/database-comparison-report.xlsx` and `output/database-comparison-report.html`
+
+Create `.env` in the project root from `.env.example`, then set your database password:
+
+```dotenv
+BULK_VALIDATOR_DB_URL=jdbc:mysql://192.168.1.108:3306/bulk_validator
+BULK_VALIDATOR_DB_USER=bulkvalidator
+BULK_VALIDATOR_DB_PASSWORD=your_database_password
 ```
 
-The project also includes `execution.Test` under `src/test/java`. It is a runnable `main` program configured for the sample transaction files and transaction profile; it is not a JUnit test. In an IDE, run `execution.Test` as a Java application. When run from the project directory, it compares `input/actual.csv` with `input/expected.csv` and writes reports under `output/`.
+The `.env` file is ignored by Git. Process environment variables with these names override values in `.env`. Keep the database user limited to the required `SELECT` privileges, and allow connections from the machine running the validator.
 
-For a different profile, pass its path as the fourth argument to `ProfileBasedTest` or change the profile path in `execution.Test`.
+Run `execution.DatabaseTest` as a Java application with the project root as its working directory. Optional arguments override the defaults, in this order:
 
-## Reports
+```text
+DatabaseTest [actual.csv|actual.xlsx] [query.sql] [report.xlsx] [profile.json]
+```
 
-If the requested report is `output/comparison-report.xlsx`, the comparison also writes `output/comparison-report.html`.
+The command-line entry point `ProfileBasedTest` also supports database mode. It reads connection settings from process environment variables (it does not load `.env`):
 
-The XLSX workbook contains:
+```text
+ProfileBasedTest --db <actual.csv|xlsx> <report.xlsx> <query.sql> [profile.json]
+```
 
-- **Summary** — source file paths, row counts, mismatch totals, execution status, and the final PASS/FAIL result.
-- **Mismatches** — one row per reported issue, with type, key, column, actual value, expected value, and details.
-
-The HTML report presents the same summary and mismatch information in a browser-friendly layout. It is a standalone file and requires no external assets or network access.
-
-The comparison passes only when there are no header mismatches, value mismatches, missing rows, extra rows, duplicate keys, or malformed rows. A schema problem such as a missing key column stops evaluation and is reported as a schema failure. Processing errors are recorded in a report when possible and are also raised to the caller.
-
-## Row matching and duplicate keys
-
-Rows are sorted by the key column before comparison, so input files do not need to be in the same order. String keys use lexical ordering and retain leading zeros (`00123` differs from `123`). Numeric keys use decimal numeric ordering (`20` sorts before `100`). Choose string keys for identifiers, account references, and codes whose formatting matters.
-
-Each key is expected to occur once in each file. Duplicate key groups are reported and are not paired arbitrarily. When the same key occurs more than once in either file, the report marks the match as ambiguous. A blank key is invalid and its row is skipped. Rows with a different field count than the header are also reported and skipped.
+In database mode the HTML report displays the SQL query under **Expected source**. The query section can be expanded and copied. The Excel summary and console show `MySQL query result`; reports do not include the JDBC URL, username, or password.
 
 ## Validation profiles
 
-A profile is a JSON object with a required `profileName`, a required `keyColumn`, and a `columns` object containing rules keyed by column name. Column names are matched without regard to case. Columns omitted from the profile use the default string rule.
+A profile is JSON with a `profileName`, a `keyColumn`, and a `columns` object. Column names in the profile are matched without regard to case. Columns without an explicit rule use default string comparison.
 
-The repository includes:
+Important column settings:
 
-- `config/sample-validation-profile.json` — example employee-style rules.
-- `config/transaction-reconciliation-profile.json` — rules for transaction reconciliation, including amount tolerances.
-
-Profile fields:
-
-| Field | Meaning |
+| Setting | Behavior |
 | --- | --- |
-| `type` | `STRING` or `DECIMAL`. Defaults to `STRING`. |
-| `trimWhitespace` | Trim surrounding whitespace before comparing. Defaults to `true`. |
-| `caseSensitive` | For string values, compare letter case. Defaults to `true`. |
-| `nullEqualsBlank` | Allow an explicit null value to equal a blank. Defaults to `false`. |
-| `whitespaceOnlyIsBlank` | Treat values containing only whitespace as blank. Defaults to `true`. |
-| `nullTokens` | Text tokens, such as `NULL` or `N/A`, to treat as explicit nulls. |
-| `scale` | For decimals, validate representability at this scale. Range: 0–12. |
-| `roundingMode` | Java rounding mode used for the decimal scale check, such as `HALF_UP` or `UNNECESSARY`. |
-| `tolerance` | Maximum absolute difference allowed for decimals. Must be non-negative. Defaults to `0`. |
+| `type` | `STRING` or `DECIMAL`. |
+| `trimWhitespace` | Trims values before comparison. Defaults to `true`. |
+| `caseSensitive` | Controls letter-case comparison for strings. Defaults to `true`. |
+| `nullEqualsBlank` | Allows explicit null and blank values to match. Defaults to `false`. |
+| `whitespaceOnlyIsBlank` | Treats whitespace-only text as blank. Defaults to `true`. |
+| `ignoreExpectedBlank` | Skips the cell comparison when the expected value is blank, SQL `NULL`, or a configured null token. Defaults to `false`. |
+| `nullTokens` | Text such as `NULL` or `N/A` to interpret as explicit nulls. |
+| `scale` and `roundingMode` | Validate whether a decimal can be represented at the specified scale. |
+| `tolerance` | Maximum allowed absolute difference between decimal values. Defaults to `0`. |
 
-Example:
+Example rule:
 
 ```json
 {
   "profileName": "transaction-reconciliation",
   "keyColumn": "Payment / Auth ID",
   "columns": {
-    "Status": {
+    "Channel": {
       "type": "STRING",
-      "trimWhitespace": true,
       "caseSensitive": false,
-      "nullEqualsBlank": false,
-      "whitespaceOnlyIsBlank": true,
+      "ignoreExpectedBlank": true,
       "nullTokens": ["NULL", "N/A"]
     },
     "Gross Amount": {
@@ -124,35 +180,24 @@ Example:
 }
 ```
 
-For decimal rules, scale and rounding determine whether a value can be represented according to the profile. The comparator still checks the exact source values against the tolerance, so rounding alone cannot conceal a difference. For example, with scale 2, `HALF_UP`, and tolerance `0.01`, `10.00` and `10.01` match, while `10.00` and `10.02` do not. `UNNECESSARY` reports a mismatch when a value needs rounding to fit the configured scale.
+`ignoreExpectedBlank` is useful for optional expected-side fields. It does not skip a comparison when the actual value is blank and the expected value is populated. Decimal tolerance is applied to the exact source values; rounding cannot by itself hide a difference.
 
-## Java API
+The supplied profiles are `config/sample-validation-profile.json` and `config/transaction-reconciliation-profile.json`.
 
-The primary API accepts `Path` values, a `BulkFileComparator.Config`, and optionally a `ValidationProfile`:
+## Reports
 
-```java
-Path actual = Path.of("input/actual.csv");
-Path expected = Path.of("input/expected.csv");
-Path xlsxReport = Path.of("output/comparison-report.xlsx");
+For an XLSX path such as `output/comparison-report.xlsx`, the matching HTML file is created beside it as `output/comparison-report.html`.
 
-BulkFileComparator.Config config = new BulkFileComparator.Config();
-config.keyColumn = "Payment / Auth ID";
-config.keyType = BulkFileComparator.KeyType.STRING;
-config.chunkSize = 50_000;
+- **Summary** shows source details, row counts, mismatch totals, execution status, and PASS/FAIL.
+- **Mismatches** lists schema, key, row, value, and processing errors with useful details.
+- The HTML report is self-contained and can be opened in a browser without network access. Database reports include a collapsible, copyable SQL view.
+- Sensitive column values and PAN-like digit sequences are redacted in mismatch details.
 
-ValidationProfile profile = RuleConfigLoader.fromFile(
-    Path.of("config/transaction-reconciliation-profile.json"));
+## Memory and data handling
 
-BulkFileComparator.compare(actual, expected, xlsxReport, config, profile);
-```
-
-For global comparison behavior without a profile, call `BulkFileComparator.compare(actual, expected, report, config)`. The supplied configuration is copied before the comparison runs, so profile settings do not mutate the caller's `Config` instance.
-
-## Operational notes
-
-- `chunkSize` controls how many rows are sorted in memory at a time. Lower values reduce memory use but can create more temporary sort files.
-- Temporary sort data is created in the system temporary directory and removed when a comparison finishes.
-- CSV files use a comma delimiter by default. The first row is treated as the header.
-- XLSX values are read as formatted cell text, and only the first worksheet is compared.
-- Header matching trims surrounding whitespace and ignores case by default. Header order is ignored unless strict ordering is enabled.
-- Sensitive column names, including names containing `PAN`, `card number`, `CVV`, `PIN`, or `security code`, are redacted in reports. PAN-like digit sequences are also redacted as a safeguard.
+- Rows are sorted in chunks controlled by `Config.chunkSize` (default: 50,000) and merged from temporary files.
+- Lower chunk sizes use less memory but produce more temporary runs.
+- CSV uses comma delimiters by default. XLSX input is read from the first worksheet.
+- Database rows are fetched through a forward-only cursor. The default fetch size is 1,000 rows; `JdbcQueryConfig` can change the fetch size or set a query timeout.
+- Temporary sort files are removed after the comparison, including when processing fails.
+- SQL values are read as text for comparison. Use SQL formatting functions such as `DATE_FORMAT` when a database value must match a text-formatted file value.

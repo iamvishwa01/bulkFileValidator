@@ -7,8 +7,14 @@ import com.test.qa.utils.excel.comparision.BulkFileComparator;
 import com.test.qa.utils.excel.comparision.RuleConfigLoader;
 import com.test.qa.utils.excel.comparision.ValidationProfile;
 
+/** Runs the sample file-to-file comparison and writes both report formats. */
 public class Test {
 
+	/** Loads the sample profile and compares the configured sample files.
+	 *
+	 * @param args unused; sample file paths are configured in this class
+	 *
+	 * @throws Exception if input loading, comparison, or report writing fails */
 	public static void main(String[] args) throws Exception {
 		Path actualFile = Paths.get("input", "actual.csv");
 		Path expectedFile = Paths.get("input", "expected.csv");
@@ -22,5 +28,6 @@ public class Test {
 		config.chunkSize = 50_000;
 		BulkFileComparator.compare(actualFile, expectedFile, reportFile, config, profile);
 		System.out.println("Report generated: " + reportFile.toAbsolutePath());
+		//#6uUdrFjd&gt
 	}
 }
